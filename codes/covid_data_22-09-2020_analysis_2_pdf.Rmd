@@ -1,0 +1,468 @@
+---
+title: "Analysis of registered covid-19 cases and numbers of death"
+author: "Fanni Kiss"
+date: '2020 11 29 '
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE) 
+
+```
+
+## Introduction
+
+Current report aims to analyse the pattern of association between registered COVID-19 cases per capita and registered numbers of death per capita due to COVID-19 on 22 September 2020.
+GitHub <https://github.com/fanni-k/DA2>.
+
+
+```{r include = FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+# Calling the cleaned data from my computer
+my_path <- "C:/Users/Fandurka/Google Drive/CEU/DA2/assignment_1/data/"
+df <- read_csv(paste0(my_path,'clean/covid_pop_09_22_2020_clean_3.csv'))
+```
+
+## Exploring the data
+
+The distribution of each variables are all skewed with a long right tale. In the summary table (Appendix, Teble 1), we can observe that there are some extreme values, which are presumably not measurement errors. Thus, extreme values are involved into the further analysis. 
+The analysis focuses on two variables: the number of cases per capita (dependent variable) and the number of death per capita (explanatory variable). Both of them skewed with a long right tale and contains only positive numbers.
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, results='hide', fig.show='hide'}
+####
+# 
+# Checking all variables on histograms and summary statistics
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(knitr)
+        
+df %>%
+  keep(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(value)) +
+  facet_wrap(~key, scales = "free") +
+  geom_histogram()+
+  theme_wsj() + 
+  scale_fill_wsj()
+
+kable(summary( df ) , caption = "Descriptive statistics of the variables")
+
+##
+# Creating two new variables:
+#   1. number of registered death per capita (y variable)
+#   2. number of registered cases per capita (x variable)
+# Note: the ratios are very low values, so they are multiplied by 10000 for the proper scaling
+df <- df %>% mutate( death_per_capita = death/population)
+df <- df %>% mutate( case_per_capita = confirmed/population)
+
+
+# Checking the distribution of x variable
+ggplot(data = df , aes(x = death_per_capita)) +
+  geom_histogram(fill="navyblue")+
+  labs(x="Number of registered death per capita", y="Number of countries")
+
+# Summary statistics of x variable
+library(moments)
+
+sum_death <- df %>% summarise(
+  variable='death_per_capita',
+  n   = n(),
+  Mean     = mean(death_per_capita),
+  Median   = median(death_per_capita),
+  Std      = sd(death_per_capita),
+  IQ_range = IQR(death_per_capita), 
+  Min      = min(death_per_capita),
+  Max      = max(death_per_capita),
+  Skew     = skewness(death_per_capita))
+
+# Checking the distribution of y variable
+ggplot(data = df , aes(x = case_per_capita)) +
+  geom_histogram(fill="navyblue")+
+  labs(x="Number of registered case per capita", y="Number of countries")
+
+# Summary statistics of x variable
+sum_case <- df %>% summarise(
+  variable='case_per_capita',
+  n   = n(),
+  Mean     = mean(case_per_capita),
+  Median   = median(case_per_capita),
+  Std      = sd(case_per_capita),
+  IQ_range = IQR(case_per_capita), 
+  Min      = min(case_per_capita),
+  Max      = max(case_per_capita),
+  Skew     = skewness(case_per_capita))
+
+# Both of the variables are skewed with a long right tale. 
+```
+## Choosing a model
+
+As the dependent variable and the explanatory variable both skewed with long right tale and does not contain negative numbers, the log transformation could be applied on the values. We compared four different models: 
+* level-level model
+* log-level model
+* level-log model
+* log-log model
+
+On the plots, we can observe that the log-log model makes the association close to linear between the both variable. This model shows us, that how many percent higher number of death per capita associated with 1% higher number of cases per capita by country, which is a meaningful interpretation. Furhtermore, both of the variables are skewed with a long right tale, so the log transformation balance the distribution for the further analysis. So, the log-log regression is going to be analysed in the further analysis. 
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, results='hide', fig.show='hide'}
+##
+# Model: death_per_capita = alpha + beta*case_per_capita 
+# Checking the possible different ln transformations 
+
+# death_per_capita - case_per_capita: level-level model without scaling
+ggplot( df , aes(x = case_per_capita, y = death_per_capita)) +
+  geom_point() +
+  geom_smooth(method="loess")+
+  labs(x = "Number of registered case per capita", y = "Number of registered death per capita") 
+
+# death_per_capita - case_per_capita: log-level model 
+require(scales)
+
+ggplot( df , aes(x = case_per_capita, y = death_per_capita ))  +
+  geom_point() +
+  geom_smooth(method="loess")+
+  labs(x = "Number of registered case per capita, ln scale", y = "Number of registered death per capita") +
+  scale_y_continuous( trans = log_trans() )
+
+# death_per_capita - case_per_capita: level-log model 
+ggplot( df , aes(x = case_per_capita, y = death_per_capita ))  +
+  geom_point() +
+  geom_smooth(method="loess")+
+  labs(x = "Number of registered case per capita", y = "Number of registered death per capita, ln scale") +
+  scale_x_continuous( trans = log_trans() )
+
+
+```
+```{r log-log, message=FALSE, warning=FALSE, echo=FALSE}
+library(ggplot2)
+require(scales)
+
+ggplot( df , aes(x = case_per_capita, y = death_per_capita ))  +
+  geom_point() +
+  geom_smooth(method="loess")+
+  labs(x = "Number of registered case per capita, ln scale", y = "Number of registered death per capita, ln scale") +
+  scale_x_continuous( trans = log_trans() )+
+  scale_y_continuous( trans = log_trans() )
+
+
+# Conclusion: taking log-log makes the association close to linear
+# Substantive: van-e értelme a kérdésnek?
+#         - variables are affected in multiplicative ways
+#         - variables are ratios
+# Statistical: 
+#         - both of the variables are skewed with long right tale --> take log
+```
+
+
+## Regression
+
+In the analysis, we make five regression:
+
+* Simple linear regression (log-log):
+  + reg1: ln_death_per_capita = alpha + beta * ln_case_per_capita
+
+* Quadratic linear regression:
+  + reg2: ln_death_per_capita  = alpha + beta_1 * ln_case_per_capita + beta_2 * ln_case_per_capita^2
+
+* Cubic liear regression:
+  + reg3: ln_death_per_capita  = alpha + beta_1 * ln_case_per_capita + beta_2 * ln_case_per_capita^2 + beta_3 * ln_case_per_capita^3
+
+* Piecewise linear spline regression
+  + reg4: ln_death_per_capita = alpha + beta_1 * ln_case_per_capita * 1(case_per_capita < 0.00091) + beta_2 * ln_case_per_capita * 1(case_per_capita >= 0.00091)
+
+* Weighted linear regression, using population as weights
+  + reg5: ln_death_per_capita = alpha + beta * ln_case_per_capita, weights: population
+  
+For the further analysis, we pick the most reliable model. Based on the adjusted R-squared, it is the weighted linear regression model, which uses population as weights. In this case, the R-squared is 0.89, which could be accepted as a relatively high R-squared value. 
+
+The result of the weighted linear regression model is ln_death_per_capita = -4.25 + 0.91 * ln_case_per_capita, which means that the number of death is 0.91% higher on average for observations with one percent higher number of cases due to COVID.
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE, results='hide', fig.show='hide'}
+# Take log of death_per_capita and log of case_per_capita
+df <- df %>% mutate( ln_death_per_capita = log( death_per_capita ),
+                     ln_case_per_capita = log( case_per_capita ) )
+
+## 
+# Making models
+
+# Simple linear regression (log-log):
+# reg1: ln_death_per_capita = alpha + beta * ln_case_per_capita
+
+# Quadratic linear regression:
+# reg2: ln_death_per_capita  = alpha + beta_1 * ln_case_per_capita + beta_2 * ln_case_per_capita^2
+
+# Cubic liear regression:
+# reg3: ln_death_per_capita  = alpha + beta_1 * ln_case_per_capita + beta_2 * ln_case_per_capita^2 + beta_3 * ln_case_per_capita^3
+
+# Piecewise linear spline regression
+# reg4: ln_death_per_capita = alpha + beta_1 * ln_case_per_capita * 1(case_per_capita < 0.00091) + beta_2 * ln_case_per_capita * 1(case_per_capita >= 0.00091)
+
+# Weighted linear regression, using population as weights
+# reg5: ln_death_per_capita = alpha + beta * ln_case_per_capita, weights: population
+
+# Add powers of the variable(s) to the dataframe
+df <- df %>% mutate( ln_case_per_capita_sq = ln_case_per_capita^2 ,
+                     ln_case_per_capita_cb = ln_case_per_capita^3)
+
+# REGRESSION
+
+# Removing infinite values
+df <- df %>% 
+  filter_all(all_vars(!is.infinite(.)))
+
+# Reg0 - built in regression in R
+reg_b <- lm( ln_death_per_capita ~ ln_case_per_capita , data = df )
+reg_b
+summary( reg_b )
+## In this case, only homoskedastic SEs, which is not robust
+
+# Reg1 - log-log regression with lm_robust
+library(estimatr)
+
+reg1 <- lm_robust( ln_death_per_capita ~ ln_case_per_capita , data = df , se_type = "HC2" )
+
+summary( reg1 )
+
+reg1_plot <- ggplot( data = df, aes( x = ln_case_per_capita, y = ln_death_per_capita ) ) + 
+  geom_point( color='blue') +
+  geom_smooth( method = lm , color = 'red' )+
+  labs(x = "ln(Number of registered case per capita)", y = "ln(Number of registered death per capita)")
+
+# Reg2 - quadratic linear regression
+reg2 <- lm_robust( ln_death_per_capita ~ ln_case_per_capita + ln_case_per_capita_sq , data = df )
+
+summary( reg2 )
+
+reg2_plot <- ggplot( data = df, aes( x = ln_case_per_capita, y = ln_death_per_capita ) ) + 
+  geom_point( color='blue') +
+  geom_smooth( formula = y ~ poly(x,2) , method = lm , color = 'red' )+
+  labs(x = "ln(Number of registered case per capita)", y = "ln(Number of registered death per capita)")
+
+# Reg3 - cubic linear regression
+reg3 <- lm_robust( ln_death_per_capita ~ ln_case_per_capita + ln_case_per_capita_sq + ln_case_per_capita_cb , data = df )
+
+summary (reg3)
+
+reg3_plot <- ggplot( data = df, aes( x = ln_case_per_capita, y = ln_death_per_capita ) ) + 
+  geom_point( color='blue') +
+  geom_smooth( formula = y ~ poly(x,3) , method = lm , color = 'red' )+
+  labs(x = "ln(Number of registered case per capita)", y = "ln(Number of registered death per capita)")
+
+# Reg4 - piecewiese linear regression
+library(lspline)
+
+cutoff_1 <- 0.0005
+cutoff_2 <- 0.0096
+cutoff_ln_1 <- log(cutoff_1)
+cutoff_ln_2 <- log(cutoff_2)
+reg4 <- lm_robust(ln_death_per_capita ~ lspline( ln_case_per_capita , cutoff_ln_1 , cutoff_ln_2 ), data = df )
+summary( reg4 )
+reg4_plot <- ggplot( data = df, aes( x = ln_case_per_capita, y = ln_death_per_capita ) ) + 
+  geom_point( color='blue') +
+  geom_smooth( formula = y ~ lspline(x,cutoff_ln_1 , cutoff_ln_2) , method = lm , color = 'red' )+
+  labs(x = "ln(Number of registered case per capita)", y = "ln(Number of registered death per capita)")
+
+# Reg5 - weighted linear regression
+reg5 <- lm_robust(ln_death_per_capita ~ ln_case_per_capita, data = df , weights = population)
+summary( reg5 )
+reg5_plot <- ggplot(data = df, aes(x = ln_case_per_capita, y = ln_death_per_capita)) +
+  geom_point(data = df, aes(size=population),  color = 'blue', shape = 16, alpha = 0.6,  show.legend=F) +
+  theme_classic()+
+  geom_smooth(aes(weight = population), method = "lm", color='red')+
+  labs(x = "ln(Number of registered case per capita)", y = "ln(Number of registered death per capita)")
+
+# Comparing the plots
+
+
+```
+```{r model comparison, message=FALSE, warning=FALSE, echo=FALSE}
+library(patchwork)
+reg1_plot+reg2_plot+reg3_plot+reg4_plot+reg5_plot
+```
+
+
+
+## Hypothesis testing
+
+In the hypothesis testing, we test if there is a significant linear relationship between the number of death and number of cases on a 0.05 level of significance. 
+
+* H0: beta = 0, or the slope of the regression line is zero
+* H1: beat != 0, or the slope of the regression line is not equal to zero. If the relationship between the death and cases is significant, the slope will not equal to zero. 
+
+The p-value of the model is 2.2e-16, which is less than the significance level (0.05), we cannot accept the null hypothesis.
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+######
+## Hypothesis testing
+#####
+#       H0: beta=0, 
+#       HA: beta != 0
+library(car)
+linearHypothesis( reg5 , "ln_case_per_capita=0")
+```
+
+## Residual analysis
+
+Based on the residual analysis, we can observe, which countries lost and save relatively the most people. The residual analysis shows, which observations are the farest from the predicted value. Countries, where there are less death due to COVID-19 compared to the number of cases, are shown Table 1. While those countries, where there are more death due to COVID-19 compared to the number of cases, are shown Table 2.
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+######
+# Residual analysis.
+library(magrittr)
+library(dplyr)
+
+# Getting the predicted y values from the model
+df$reg5_y_pred <- reg5$fitted.values
+
+# Calculating the errors of the model
+df$reg5_res <- df$ln_death_per_capita - df$reg5_y_pred 
+
+# Finding countries with largest negative errors (who saved relatively the most people)
+library(knitr)
+kable(df %>% top_n( -5 , reg5_res ) %>% 
+  select( country , ln_death_per_capita , reg5_y_pred , reg5_res ), caption="The TOP5 countries, who saved relatively the most people")
+
+# Finding countries with largest positive errors (who lost relatively the most people)
+kable(df %>% top_n( 5 , reg5_res ) %>% 
+  select( country , ln_death_per_capita , reg5_y_pred , reg5_res ), caption = "The TOP5 countries, who saved relatively the most people")
+```
+
+
+# Appendix
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+library(knitr)
+kable(summary( df ) , caption = "Descriptive statistics of the variables")
+
+# Checking the distribution of x variable
+ggplot(data = df , aes(x = death_per_capita)) +
+  geom_histogram(fill="navyblue")+
+  labs(x="Number of registered death per capita", y="Number of countries")
+
+# Summary statistics of x variable
+library(moments)
+
+sum_death <- df %>% summarise(
+  variable='death_per_capita',
+  n   = n(),
+  Mean     = mean(death_per_capita),
+  Median   = median(death_per_capita),
+  Std      = sd(death_per_capita),
+  IQ_range = IQR(death_per_capita), 
+  Min      = min(death_per_capita),
+  Max      = max(death_per_capita),
+  Skew     = skewness(death_per_capita))
+
+# Checking the distribution of y variable
+ggplot(data = df , aes(x = case_per_capita)) +
+  geom_histogram(fill="navyblue")+
+  labs(x="Number of registered case per capita", y="Number of countries")
+
+# Summary statistics of x variable
+sum_case <- df %>% summarise(
+  variable='case_per_capita',
+  n   = n(),
+  Mean     = mean(case_per_capita),
+  Median   = median(case_per_capita),
+  Std      = sd(case_per_capita),
+  IQ_range = IQR(case_per_capita), 
+  Min      = min(case_per_capita),
+  Max      = max(case_per_capita),
+  Skew     = skewness(case_per_capita))
+
+##
+# Model: death_per_capita = alpha + beta*case_per_capita 
+# Checking the possible different ln transformations 
+
+# death_per_capita - case_per_capita: level-level model without scaling
+ggplot( df , aes(x = case_per_capita, y = death_per_capita)) +
+  geom_point() +
+  geom_smooth(method="loess")+
+  labs(x = "Number of registered case per capita", y = "Number of registered death per capita") 
+
+# death_per_capita - case_per_capita: log-level model 
+require(scales)
+
+ggplot( df , aes(x = case_per_capita, y = death_per_capita ))  +
+  geom_point() +
+  geom_smooth(method="loess")+
+  labs(x = "Number of registered case per capita, ln scale", y = "Number of registered death per capita") +
+  scale_y_continuous( trans = log_trans() )
+
+# death_per_capita - case_per_capita: level-log model 
+ggplot( df , aes(x = case_per_capita, y = death_per_capita ))  +
+  geom_point() +
+  geom_smooth(method="loess")+
+  labs(x = "Number of registered case per capita", y = "Number of registered death per capita, ln scale") +
+  scale_x_continuous( trans = log_trans() )
+
+# REGRESSION
+
+# Removing infinite values
+df <- df %>% 
+  filter_all(all_vars(!is.infinite(.)))
+
+# Reg0 - built in regression in R
+reg_b <- lm( ln_death_per_capita ~ ln_case_per_capita , data = df )
+reg_b
+summary( reg_b )
+## In this case, only homoskedastic SEs, which is not robust
+
+# Reg1 - log-log regression with lm_robust
+library(estimatr)
+
+reg1 <- lm_robust( ln_death_per_capita ~ ln_case_per_capita , data = df , se_type = "HC2" )
+
+summary( reg1 )
+
+reg1_plot <- ggplot( data = df, aes( x = ln_case_per_capita, y = ln_death_per_capita ) ) + 
+  geom_point( color='blue') +
+  geom_smooth( method = lm , color = 'red' )+
+  labs(x = "ln(Number of registered case per capita)", y = "ln(Number of registered death per capita)")
+
+# Reg2 - quadratic linear regression
+reg2 <- lm_robust( ln_death_per_capita ~ ln_case_per_capita + ln_case_per_capita_sq , data = df )
+
+summary( reg2 )
+
+reg2_plot <- ggplot( data = df, aes( x = ln_case_per_capita, y = ln_death_per_capita ) ) + 
+  geom_point( color='blue') +
+  geom_smooth( formula = y ~ poly(x,2) , method = lm , color = 'red' )+
+  labs(x = "ln(Number of registered case per capita)", y = "ln(Number of registered death per capita)")
+
+# Reg3 - cubic linear regression
+reg3 <- lm_robust( ln_death_per_capita ~ ln_case_per_capita + ln_case_per_capita_sq + ln_case_per_capita_cb , data = df )
+
+summary (reg3)
+
+reg3_plot <- ggplot( data = df, aes( x = ln_case_per_capita, y = ln_death_per_capita ) ) + 
+  geom_point( color='blue') +
+  geom_smooth( formula = y ~ poly(x,3) , method = lm , color = 'red' )+
+  labs(x = "ln(Number of registered case per capita)", y = "ln(Number of registered death per capita)")
+
+# Reg4 - piecewiese linear regression
+library(lspline)
+
+cutoff_1 <- 0.0005
+cutoff_2 <- 0.0096
+cutoff_ln_1 <- log(cutoff_1)
+cutoff_ln_2 <- log(cutoff_2)
+reg4 <- lm_robust(ln_death_per_capita ~ lspline( ln_case_per_capita , cutoff_ln_1 , cutoff_ln_2 ), data = df )
+summary( reg4 )
+reg4_plot <- ggplot( data = df, aes( x = ln_case_per_capita, y = ln_death_per_capita ) ) + 
+  geom_point( color='blue') +
+  geom_smooth( formula = y ~ lspline(x,cutoff_ln_1 , cutoff_ln_2) , method = lm , color = 'red' )+
+  labs(x = "ln(Number of registered case per capita)", y = "ln(Number of registered death per capita)")
+
+# Reg5 - weighted linear regression
+reg5 <- lm_robust(ln_death_per_capita ~ ln_case_per_capita, data = df , weights = population)
+summary( reg5 )
+reg5_plot <- ggplot(data = df, aes(x = ln_case_per_capita, y = ln_death_per_capita)) +
+  geom_point(data = df, aes(size=population),  color = 'blue', shape = 16, alpha = 0.6,  show.legend=F) +
+  theme_classic()+
+  geom_smooth(aes(weight = population), method = "lm", color='red')+
+  labs(x = "ln(Number of registered case per capita)", y = "ln(Number of registered death per capita)")
+
+```
+
