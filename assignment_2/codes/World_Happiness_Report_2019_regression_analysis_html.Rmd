@@ -1,0 +1,428 @@
+---
+title: "World Happiness Report 2019 - Multiple linear regression analysis"
+date: 2021-01-03
+author: "Fanni Kiss"
+output: html_document
+header-includes:
+    - \usepackage{dcolumn}
+  
+---
+
+## Introduction
+
+Current report attempts to show how six key variables contribute to explaining the full sample of national annual average happiness scores in the World Happiness Report 2019. These variables are GDP per capita, social support, healthy life expectancy, freedom to make life choices, generosity and perceptions of corruption. The values are scores by country, which are based on individuals' own assessments of their lives. The six variables are used to explain the variation of happiness across countries. 
+
+[GitHub repository](https://github.com/fanni-k/DA2/tree/main/assignment_2) 
+
+# Data
+
+```{r , include = FALSE}
+# Clear memory
+rm(list=ls())
+
+# Packages to use
+library(tidyverse)
+# For scaling ggplots
+require(scales)
+# Estimate piecewise linear splines
+#install.packages("lspline")
+library(lspline)
+# Estimate robust SE
+#install.packages("estimatr")
+library(estimatr)
+# Compare models with robust SE
+#install.packages("texreg")
+library(texreg)
+# For different themes
+#install.packages(ggthemes)
+library(ggthemes)
+#install.packages("GGally")
+library(GGally)
+library(mfx)
+library(margins)
+library(pscl)
+library(modelsummary)
+library(stargazer)
+library(ggplot2)
+
+
+# Call the data from github
+my_url <- "https://raw.githubusercontent.com/fanni-k/DA2/main/assignment_2/data/raw/2019.csv"
+df <- read_csv( my_url )
+```
+
+
+```{r , echo = FALSE , include=FALSE}
+# Renaming columns
+colnames(df)[1] <- "Rank"
+colnames(df)[2] <- "Country"
+colnames(df)[4] <- "GDP_per_capita"
+colnames(df)[5] <- "Social_support"
+colnames(df)[6] <- "Life_expectancy"
+colnames(df)[7] <- "Freedom_of_choice"
+colnames(df)[9] <- "Corruption"
+```
+
+The World Happiness Report is a publication of the Sustainable Development Solutions Network, powered by data from the Gallup World Poll. The cleaned data set is downloaded from [Kaggle](https://www.kaggle.com/unsdsn/world-happiness). Descriptive statistics and histograms of explanatory variables are shown in the appendix. 
+
+# Model
+
+The correlations between the Happiness Score and GDP per capita, Social support and Heathy life expectancy were strong and positive, so first, I use a simple linear regression model to predict the Happiness Score based on one variable. Then we can observe, how accurate the predicted Happiness Score compared to the true values. After that, I use multiple linear regression model to predict the happiness score more precisely using the three variables simultaneously and then using all variables simultaneously. 
+
+## Simple Linear Regression
+
+```{r, echo=FALSE}
+
+# Simple linear regression on Happiness Score
+reg0 <- lm_robust( Score ~ GDP_per_capita , data = df)
+
+```
+
+
+Firstly, I regress Happiness Score on GDP per capita. The multiple R-squared is 0.63, which means that GDP per capita explains 63% of the Happiness Score value. Also, the p-value of the coefficient of the GPD_per_capita variable is 0, so we can consider the predictor variable statistically significant. The regression table is shown in the appendix. The simple linear regression model is the next: Happiness Score (estimated) = 3.4 + 2.22 * GDP_per_capita
+The GDP per capita alone explains 63% of the Happiness Score. In the next section, I complete the regression model with further variables to predict more precisely the Happiness Score.
+
+
+## Multiple Linear Regression Model I.
+
+```{r , echo=FALSE}
+
+# Multiple linear regression I. on Happiness Score
+reg1 <- lm_robust( Score ~ GDP_per_capita + Social_support +
+                      Life_expectancy + Freedom_of_choice + Generosity + Corruption, data = df ) 
+
+```
+
+
+The World Happiness Report data set allows us to check, how do the six different variables explain the Happiness Score. I apply a multiple linear regression using the GDP per capita, social support, life expectancy, freedom to make life choices, generosity and corruption to see, how do these variables explain the Happiness Score. The result of the regression is a model, which tells us, how does the Happiness Score changes on average with one unit larger value of one variable but the same vaue of the rest of the variables. 
+The multiple linear regression model for the World Happiness Report 2019 is the next: Happinnes Score (estimated) = 1.79 + 0.77 * GDP_per_capita + 1.12 * social_support + 1.08 * life_expectancy + 1.45 * freedom_of_choice + 0.49 * generosity + 0.97 * corruption
+The multiple R-squared values of the model is 0.78, which means that the six explanatory variables explain 78% of the Happinness Score. 
+There are two variables, generosity and corruption, which confidence interval ranges involve zero. The interval that contains the true value of the regression coefficients can be both negative and positive by 95% probability. This means, that generosity and corruption explain weakly the Happiness Score in my analysis. Also, the p-values of generosity and corruption are high (0.41 and 0.16 consecutively), which means that generosity and corruption are not statistically significant predictor variables. 
+
+### Comparison of estimated and true value of Happiness Score (I.)
+
+Due to the multiple linear regression model, we have estimated values for the Happiness Score. The plot below shows the estimated values and the true values. The smaller is the difference between the estimated value and the true value of the Happiness Score of a give country, the closer is the point to the 45 degree line. If the model would explain perfectly the Happiness Score, all the point would lie on the 45 degree line. However, in our case, the model does not explain all the Happiness Scores perfectly. There are countries, which are above the predicted happiness level and there are ones, which are below. Let us see, which ones are the top countries, that are the least well explained by the multiple linear regression model. 
+
+```{r , echo=FALSE, fig.align='center' , out.width = '50%'}
+
+# Inserting estimated values as new column to the data frame
+df$fit <- reg1$fit
+
+# Plotting the true values and the estimated values
+ggplot( df , aes(x = fit, y = Score)) +
+    geom_point() +
+   geom_abline(intercept = 0, slope = 1)+
+    labs(y = "Happiness Score 2019 (true value)" , x = "Happiness Score 2019 (estimated value by multiple linear regression model I.)")
+```
+
+I set two threshold values to pick those countries, which shows a great difference between true Happiness Score value (y) and the estimated value (yE) based on my multiple linear regression model. Those countries, which shows higher than 0.8 difference between the true and the estimated value, are the "TOP Positive Countries". The scatterplot below shows the countries which are "happier than they supposed to be" according to our multiple linear regression model. Benin, Pakistan, Costa Rica, Ivory Coast, Israel, El Salvador, Guatemala, Mexico and Niger have higher Happiness Score in the World Happiness Report than predicted by my multiple linear regression model. To understand the true value of the Happiness Score, we should consider to involve further explanatory variables into the multiple linear regression model, such as weather or connection to sea/ocean, as all of the countries have warm climate and most of them have connection to a sea or ocean.
+
+Similarly, those countries, which shows lower than -1 difference between the true and the estimated value, are the "TOP Negative Countries". The scatterplot below shows countries which are "less happier than they supposed to be" according to our multiple linear regression model. Botswana, Rwanda, Tanzania, Sri Lanka, Hong Kong, Myanmar and Singapore have lower Happiness Score in the World Happiness Report than the predicted value by my multiple linear regression model. The mentioned countries used to be part of a colony in the colonial period of the history. We might involve a dummy variable for further analysis to have a more precise model.
+
+
+```{r , echo=FALSE, fig.align='center' , out.width = '50%'}
+# Calculating the difference between the true value of Happiness Score and the estimated value
+df$forecast_error <- df$Score - reg1$fitted.values
+
+# Creating a new data frame for countries, which have higher than 0.8 difference --> TOP Positive Countries
+df_residuals_positive <- df[ which(df$forecast_error > 0.8), ]
+
+# Plotting the TOP Positive Countries
+ggplot(data=df_residuals_positive, aes(x=reorder(Country, forecast_error ), y=forecast_error ))+
+  geom_bar(stat = "identity", width=0.95, fill="black") + 
+  coord_flip()+
+  labs(y = "Difference between true value and estimated value by multiple linear regression model I." , x = "Country" , title = "TOP Positive Countries")
+
+# Creating a new data frame for countries, which have lower than -1 difference --> TOP Negative Countries
+df_residuals_negative <- df[ which(df$forecast_error < -1), ]
+
+# Plotting the TOP Negative Countries
+ggplot(data=df_residuals_negative, aes(x=reorder(Country, forecast_error ), y=forecast_error ))+
+  geom_bar(stat = "identity", width=0.95, fill="black") + 
+  coord_flip()+
+  labs(y = "Difference between true value and estimated value by multiple linear regression model I." , x = "Country" , title = "TOP Negative Countries")
+```
+## Multiple Linear Regression Model II. 
+
+```{r , echo=FALSE}
+# Multiple linear regression II. on Happiness Score 
+reg2 <- lm_robust( Score ~ GDP_per_capita + Social_support +
+                      Life_expectancy + Freedom_of_choice , data = df ) 
+
+```
+
+The second multiple linear regression model involves four explanatory variables to predict the Happiness Score: GDP_per_capita, Social_support, Life_expectancy and Freedom_of_choice. The R-squared value is 0.77, which means that these explanatory variables explain 77% of the Happiness Score. The result of the second model is the next: Happiness Score = 1.89 + 0.81 * GDP_per_capita + 1.02 * Social_support + 1.14 * Life_expectancy + 1.85 * Freedom_of_choice
+This model exclude the Generosity and Corruption, which were not statistically significant based on their p-value. 
+
+### Comparison of estimated and true value of Happiness Score (II.)
+
+The true value of the Happiness Score and the estimated value by the second model are shown in the appendix by the scatterplot. I used the second model to see wether the TOP Negative and Positive Countries are changing. Finland and Chad have appeared as "happier countries than they supposed to be" according to the second model. However, Singapore and Myanmar have disappeared from the TOP Negative countries, which means that the difference between the true value of the Happiness Score and the estimated value by the second model was smaller, thus, more precise by the second model, which ignored two variables: Generosity and Corruption. 
+
+```{r , echo=FALSE, fig.align='center' , out.width = '50%'}
+# Calculating the difference between the true value and the estimated value by model II.
+df$forecast_error_reg2 <- df$Score - reg2$fitted.values
+
+# Inserting estimated values as new column to the data frame
+df$fit_2 <- reg2$fit
+
+# Creating a new data frame for TOP Positive Countries
+df_residuals_positive <- df[ which(df$forecast_error_reg2 > 0.8), ]
+
+# Plotting TOP Positive Countries
+ggplot(data=df_residuals_positive, aes(x=reorder(Country, forecast_error_reg2 ), y=forecast_error_reg2 ))+
+  geom_bar(stat = "identity", width=0.95, fill="black") + 
+  coord_flip()+
+  labs(y = "Difference between true value and estimated value by multiple linear regression model II." , x = "Country" , title = "TOP Positive Countries")
+
+# Creating a data frame for TOP Negative Countries
+df_residuals_negative <- df[ which(df$forecast_error_reg2 < -1), ]
+
+# Plotting TOP Negative Countries
+ggplot(data=df_residuals_negative, aes(x=reorder(Country, forecast_error_reg2 ), y=forecast_error_reg2 ))+
+  geom_bar(stat = "identity", width=0.95, fill="black") + 
+  coord_flip()+
+  labs(y = "Difference between true value and estimated value by multiple linear regression model II." , x = "Country" , title = "TOP Negative Countries")
+
+```
+
+## Collinearity
+
+In this section, I look at the pair-wise correlation among the explanatory variables. The correlation graph below illustrates the dependence between the variables at the same time. The table contains the correlation coefficients between each variable and the others. In the correlation graph, it can be seen that all variables have a positive influence on the Happiness Score. There are three variables (GDP per capita, Social support, Healthy life expectancy), which have a strong correlation coefficient (0.8) with Happiness Score. Also, there are strong but imperfect correlations among three explanatory variables (GDP per capita, Social support and Healthy life expectancy), which means that multicollinearity exists in the model. It means that there are not many observations that are the same in one explanatory variable but different in the other explanatory variables. In the World Happiness Report it means, that countries with high GDP per capita tend to associate with high social support and high healthy life expectancy.
+
+```{r , echo = FALSE , fig.align='center' , out.width = '50%' , message=FALSE}
+# subsetting data
+h <- df[,-c(1:2)]
+g <- df[,-c(10:13)]
+anyNA(g)
+table(is.na(g))
+g <- na.omit(g)
+
+# Plotting the correlation pairs
+ggcorr(g, label = TRUE, label_size = 2.9, hjust = 1, layout.exp = 2)
+```
+
+# Robustness analysis
+
+My analysis assumes that the six different variables in the World Happiness Report can predict the Happiness Score in a certain level. I used two different multiple linear regression models. One of them involves all the variables contained by the World Happiness Report. However, two of the explanatory variables were not statistically significant (Generosity and Corruption). Thus, I made a second multiple linear regression model, which ignores the Generosity and Corruption to see if it predicts the Happiness Score better than the first model.
+The table below compares the two multiple linear regression models. To compare the two multiple linear regression models, I use the value of residual standard error. In model I., residual SE is lower (0.534) than in model II. (0.54). The residual SE is zero, if the model predicts perfectly. Consequently, the model I. is able to predict more precisely. 
+
+```{r , echo=FALSE , message=FALSE , results='asis'}
+# Multiple linear regression model I. for the 'stargazer' function
+lm1 <- lm( Score ~ GDP_per_capita + Social_support +
+             Life_expectancy + Freedom_of_choice + Generosity + Corruption, data = df ) 
+
+# Multiple linear regression model II. for the 'stargazer' function
+lm2 <- lm( Score ~ GDP_per_capita + Social_support +
+             Life_expectancy + Freedom_of_choice , data = df )
+
+# Inserting the result of the two models into a table
+#install.packages("stargazer") 
+library(stargazer)
+stargazer(lm1, lm2, title="Estimation results of the two multiple linear regression models" ,  align=TRUE)
+
+```
+
+# External validity
+
+The World Happiness data set consists of variables, which are representative for all countries. Therefore, the model could predict the ranking of the World Happiness Report for the future globally. However, the prediction could be more precise if further variables would be involved into the analysis. As the residual analysis has shown, a dummy variable for each country if it used to be a colony or not, would have an additional value for the prediction. 
+
+# Summary
+
+Current report attempted to predict the Happiness Score for each country based on the data set of the World Happiness Report 2019. The analytics aims to compare the true values of the Happiness Score and the estimated values. The estimation was made by two different models. One of them involved all the six variables contained by the data set. Two variables were not considered statistically significant, therefore, the second multiple linear regression model ignored these two variables (Generosity and Corruption). Both of the models have shown a high R-squared value (77-78%), which allows us to conclude that the used variables explain the Happiness Score on a high level. However, at the beginning, the GDP per capita was regressed on the Happiness Score, which also explains 63% of the Happiness Score. 
+In the analysis, we explored a multicollinearity among three explanatory variables (GDP per capita, Social support and Healthy life expectancy), which means that in most of the countries, these variables are tend to be associated and do not vary from each other. 
+
+# Appendix
+
+## Descriptive statistics of each variable
+
+```{r , echo = FALSE}
+library(moments)
+
+happiness_sum_stat <- df %>% summarise(
+  mean     = mean(Score),
+  median   = median(Score),
+  std      = sd(Score),
+  iq_range = IQR(Score), 
+  min      = min(Score),
+  max      = max(Score),
+  skew     = skewness(Score),
+  numObs   = n() )
+
+knitr::kable(happiness_sum_stat,caption="Summary statistics for Happiness Score 2019")
+
+gdp_sum_stat <- df %>% summarise(
+  mean     = mean(GDP_per_capita),
+  median   = median(GDP_per_capita),
+  std      = sd(GDP_per_capita),
+  iq_range = IQR(GDP_per_capita), 
+  min      = min(GDP_per_capita),
+  max      = max(GDP_per_capita),
+  skew     = skewness(GDP_per_capita),
+  numObs   = n() )
+
+knitr::kable(happiness_sum_stat,caption="Summary statistics for GDP per capita")
+
+social_sum_stat <- df %>% summarise(
+  mean     = mean(Social_support),
+  median   = median(Social_support),
+  std      = sd(Social_support),
+  iq_range = IQR(Social_support), 
+  min      = min(Social_support),
+  max      = max(Social_support),
+  skew     = skewness(Social_support),
+  numObs   = n() )
+
+knitr::kable(happiness_sum_stat,caption="Summary stat for social support")
+
+life_sum_stat <- df %>% summarise(
+  mean     = mean(Life_expectancy),
+  median   = median(Life_expectancy),
+  std      = sd(Life_expectancy),
+  iq_range = IQR(Life_expectancy), 
+  min      = min(Life_expectancy),
+  max      = max(Life_expectancy),
+  skew     = skewness(Life_expectancy),
+  numObs   = n() )
+
+knitr::kable(happiness_sum_stat,caption="Summary stat for healthy life expectancy")
+
+freedom_sum_stat <- df %>% summarise(
+  mean     = mean(Freedom_of_choice),
+  median   = median(Freedom_of_choice),
+  std      = sd(Freedom_of_choice),
+  iq_range = IQR(Freedom_of_choice), 
+  min      = min(Freedom_of_choice),
+  max      = max(Freedom_of_choice),
+  skew     = skewness(Freedom_of_choice),
+  numObs   = n() )
+
+knitr::kable(happiness_sum_stat,caption="Summary stat for freedom to make life choices")
+
+corruption_sum_stat <- df %>% summarise(
+  mean     = mean(Corruption),
+  median   = median(Corruption),
+  std      = sd(Corruption),
+  iq_range = IQR(Corruption), 
+  min      = min(Corruption),
+  max      = max(Corruption),
+  skew     = skewness(Corruption),
+  numObs   = n() )
+
+knitr::kable(happiness_sum_stat,caption="Summary stat for perceptions of corruption")
+
+gener_sum_stat <- df %>% summarise(
+  mean     = mean(Generosity),
+  median   = median(Generosity),
+  std      = sd(Generosity),
+  iq_range = IQR(Generosity), 
+  min      = min(Generosity),
+  max      = max(Generosity),
+  skew     = skewness(Generosity),
+  numObs   = n() )
+
+knitr::kable(happiness_sum_stat,caption="Summary stat for generosity")
+```
+
+
+## Histograms of each variable
+
+```{r , echo = FALSE}
+g %>%
+  keep(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(value)) +
+  facet_wrap(~key, scales = "free") +
+  geom_histogram()+
+  theme_wsj() + 
+  scale_fill_wsj()
+```
+
+
+## Scatterplots
+
+The scatterplots below shows the association between the Happines Score and each explanatory variable with a lowess curve.
+
+```{r , echo = FALSE , out.width = '50%'}
+ggplot( df , aes(x = Rank, y = Score)) +
+    geom_point() +
+    geom_smooth(method="loess" , formula = y ~ x )+
+    labs(y = "Happiness Score 2019" , x = "Overall ranking")
+
+ggplot( df , aes(x = GDP_per_capita, y = Score)) +
+    geom_point() +
+    geom_smooth(method="loess" , formula = y ~ x )+
+    labs(y = "Happiness Score 2019" , x = "GDP per capita")
+
+ggplot( df , aes(x = Social_support, y = Score)) +
+    geom_point() +
+    geom_smooth(method="loess" , formula = y ~ x )+
+    labs(y = "Happiness Score 2019" , x = "Social support")
+
+ggplot( df , aes(x = Life_expectancy, y = Score)) +
+    geom_point() +
+    geom_smooth(method="loess" , formula = y ~ x )+
+    labs(y = "Happiness Score 2019" , x = "Healthy life expectancy")
+
+ggplot( df , aes(x = Freedom_of_choice, y = Score)) +
+    geom_point() +
+    geom_smooth(method="loess" , formula = y ~ x )+
+    labs(y = "Happiness Score 2019" , x = "Freedom to make life choices")
+
+ggplot( df , aes(x = Generosity, y = Score)) +
+    geom_point() +
+    geom_smooth(method="loess" , formula = y ~ x )+
+    labs(y = "Happiness Score 2019" , x = "Generosity")
+
+ggplot( df , aes(x = Corruption, y = Score)) +
+    geom_point() +
+    geom_smooth(method="loess" , formula = y ~ x )+
+    labs(y = "Happiness Score 2019" , x = "Perceptions of corruption")
+```
+## Regression tables
+
+The regression table shows the result of the simple linear regression for Happiness Score on GDP per capita.
+
+```{r , echo=FALSE}
+library(tidyr)
+library(knitr)
+library(kableExtra)
+library(readr)
+
+reg0 %>%
+  tidy() %>%
+  kable(caption = "Result of the simple linear regression on Happiness Score by GDP per capita",
+        digits = c(2, 2, 2, 2, 2, 2, 2))
+```
+
+The regression table below shows the result of the multiple linear regression model I.
+
+```{r , echo=FALSE , message = FALSE}
+
+reg1 %>%
+  tidy() %>%
+  kable(caption = "Result of the multiple linear regression on Happiness Score",
+        digits = c(2, 2, 2, 2, 2, 2, 2))
+```
+
+The regression table below shows the result of the multiple linear regression model II.
+
+```{r , echo=FALSE , message = FALSE}
+
+reg2 %>%
+  tidy() %>%
+  kable(caption = "Result of the multiple linear regression on Happiness Score",
+        digits = c(2, 2, 2, 2, 2, 2, 2))
+```
+
+The scatterplot below shows the true values and the estimated values by the model II.
+
+```{r , echo=FALSE , fig.align='center' , out.width = '50%'}
+
+
+# Plotting the true values and the estimated values by model II.
+ggplot( df , aes(x = fit_2, y = Score)) +
+    geom_point() +
+   geom_abline(intercept = 0, slope = 1)+
+    labs(y = "Happiness Score 2019 (true value)" , x = "Happiness Score 2019 (estimated value by multiple linear regression model II.)")
+
+```
