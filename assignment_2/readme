@@ -1,1 +1,5 @@
+# World Happiness Report 2019 - Multiple Linear Regression Model
 
+Current report attempts to creat a multiple linear regression model using six explanatory variables to predict the Happiness Score and make a comparison between the estimated value and the true value of the Happiness Score.
+
+Link for the GitHub repo: https://github.com/fanni-k/DA2/tree/main/assignment_2
